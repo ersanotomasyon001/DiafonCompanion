@@ -22,13 +22,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webhook: EditText
     private lateinit var targetPackage: EditText
     private lateinit var https: CheckBox
-    private lateinit var returnHome: CheckBox
     private lateinit var autoStart: CheckBox
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Diafon Companion"
+        title = "Diafon Companion V2"
         setContentView(buildUi())
         loadConfig()
         requestNotificationPermission()
@@ -49,30 +48,33 @@ class MainActivity : AppCompatActivity() {
         scroll.addView(root)
 
         root.addView(TextView(this).apply {
-            text = "Diafon Companion"
+            text = "Diafon Companion V2"
             textSize = 26f
         })
 
         root.addView(TextView(this).apply {
-            text = "Reolink açıkken kayan Kapıyı Aç düğmesi gösterir."
+            text = "Reolink açıkken şık Kapıyı Aç ve Home Assistant butonlarını gösterir."
             textSize = 15f
             setPadding(0, dp(8), 0, dp(16))
         })
 
         host = field(root, "Home Assistant IP / alan adı")
-        port = field(root, "Port", inputType = android.text.InputType.TYPE_CLASS_NUMBER)
-        webhook = field(root, "Webhook ID")
+        port = field(
+            root,
+            "Port",
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        )
+        webhook = field(root, "Kapı açma Webhook ID")
         targetPackage = field(root, "Reolink paket adı")
         https = check(root, "HTTPS kullan")
-        returnHome = check(root, "Komuttan sonra ana ekrana dön")
         autoStart = check(root, "Telefon açılınca servisi başlat")
 
-        button(root, "Ayarları Kaydet") {
+        button(root, "AYARLARI KAYDET") {
             saveConfig()
             Toast.makeText(this, "Ayarlar kaydedildi.", Toast.LENGTH_SHORT).show()
         }
 
-        button(root, "Overlay İzni Ver") {
+        button(root, "OVERLAY İZNİ VER") {
             startActivity(
                 Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -81,33 +83,45 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        button(root, "Kullanım Erişimi Ver") {
+        button(root, "KULLANIM ERİŞİMİ VER") {
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         }
 
-        button(root, "Servisi Başlat") {
+        button(root, "SERVİSİ BAŞLAT") {
             saveConfig()
+
             if (!Settings.canDrawOverlays(this)) {
-                Toast.makeText(this, "Önce overlay izni ver.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Önce overlay izni ver.",
+                    Toast.LENGTH_LONG
+                ).show()
                 return@button
             }
+
             if (!hasUsageAccess()) {
-                Toast.makeText(this, "Önce kullanım erişimi ver.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Önce kullanım erişimi ver.",
+                    Toast.LENGTH_LONG
+                ).show()
                 return@button
             }
+
             OverlayService.start(this)
             updateStatus()
         }
 
-        button(root, "Servisi Durdur") {
+        button(root, "SERVİSİ DURDUR") {
             OverlayService.stop(this)
             updateStatus()
         }
 
-        button(root, "Webhook'u Test Et") {
+        button(root, "WEBHOOK'U TEST ET") {
             saveConfig()
             val config = ConfigStore(this).load()
             status.text = "Test ediliyor: ${config.webhookUrl}"
+
             thread {
                 val result = HomeAssistantClient.postWebhook(config)
                 runOnUiThread {
@@ -127,12 +141,15 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(TextView(this).apply {
             text = """
-                Not: Android, bu uygulamanın Reolink'i zorla kapatmasına izin vermez.
-                Seçenek açıksa başarılı komuttan sonra Reolink arka plana alınır ve ana ekrana dönülür.
+                Kapıyı Aç:
+                Home Assistant webhook'una POST gönderir.
 
-                Xiaomi için ayrıca:
-                • Ayarlar → Uygulamalar → Diafon Companion → Pil tasarrufu → Kısıtlama yok
-                • Otomatik başlatmayı aç
+                Home Assistant:
+                Röleye dokunmadan doğrudan Home Assistant uygulamasını açar.
+
+                Xiaomi:
+                • Pil tasarrufu → Kısıtlama yok
+                • Otomatik başlatma → Açık
             """.trimIndent()
         })
 
@@ -148,6 +165,7 @@ class MainActivity : AppCompatActivity() {
             text = label
             setPadding(0, dp(12), 0, dp(4))
         })
+
         return EditText(this).also {
             it.inputType = inputType
             root.addView(
@@ -166,7 +184,11 @@ class MainActivity : AppCompatActivity() {
             root.addView(it)
         }
 
-    private fun button(root: LinearLayout, textValue: String, action: () -> Unit) {
+    private fun button(
+        root: LinearLayout,
+        textValue: String,
+        action: () -> Unit
+    ) {
         root.addView(Button(this).apply {
             text = textValue
             setOnClickListener { action() }
@@ -180,20 +202,17 @@ class MainActivity : AppCompatActivity() {
         webhook.setText(config.webhookId)
         targetPackage.setText(config.targetPackage)
         https.isChecked = config.https
-        returnHome.isChecked = config.returnHome
         autoStart.isChecked = config.autoStart
     }
 
     private fun saveConfig() {
-        val parsedPort = port.text.toString().toIntOrNull() ?: 8123
         ConfigStore(this).save(
             AppConfig(
                 host = host.text.toString(),
-                port = parsedPort,
+                port = port.text.toString().toIntOrNull() ?: 8123,
                 https = https.isChecked,
                 webhookId = webhook.text.toString(),
                 targetPackage = targetPackage.text.toString(),
-                returnHome = returnHome.isChecked,
                 autoStart = autoStart.isChecked
             )
         )
@@ -201,19 +220,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus() {
         status.text = buildString {
-            appendLine("Overlay izni: ${if (Settings.canDrawOverlays(this@MainActivity)) "Var" else "Yok"}")
-            appendLine("Kullanım erişimi: ${if (hasUsageAccess()) "Var" else "Yok"}")
+            appendLine(
+                "Overlay izni: ${
+                    if (Settings.canDrawOverlays(this@MainActivity)) "Var" else "Yok"
+                }"
+            )
+            appendLine(
+                "Kullanım erişimi: ${
+                    if (hasUsageAccess()) "Var" else "Yok"
+                }"
+            )
             append("Hedef paket: ${ConfigStore(this@MainActivity).load().targetPackage}")
         }
     }
 
     private fun hasUsageAccess(): Boolean {
-        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val appOps =
+            getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+
         val mode = appOps.checkOpNoThrow(
             AppOpsManager.OPSTR_GET_USAGE_STATS,
             android.os.Process.myUid(),
             packageName
         )
+
         return mode == AppOpsManager.MODE_ALLOWED
     }
 

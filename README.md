@@ -1,24 +1,24 @@
-# TAM GITHUB SÜRÜMÜ
+# Diafon Companion V2
 
-Bu paket GitHub Actions üzerinde **Gradle Wrapper olmadan** APK derleyecek şekilde hazırlanmıştır.
+Reolink uygulaması öndeyken iki düğmeli kayan bir kart gösterir:
 
-# Diafon Companion
+- **Kapıyı Aç:** Home Assistant webhook'una POST gönderir.
+- **Home Assistant:** Röleyi tetiklemeden HA uygulamasını açar.
 
-Reolink uygulaması öndeyken ekranda kayan **Kapıyı Aç** düğmesi gösterir.
-Düğme, Home Assistant webhook'una yerel ağ üzerinden POST gönderir.
+## Home Assistant tarafı
 
-## Home Assistant otomasyonu
-
-Aşağıdaki entity adını kendi Wemos rölenle değiştir:
+`switch.wemos_kapi_rolesi` adını kendi gerçek Wemos röle entity'n ile değiştir:
 
 ```yaml
-alias: Reolink Uygulaması - Kapıyı Aç
+alias: Diafon Companion - Kapıyı Aç
+description: Telefon uygulamasından gelen webhook ile Wemos rölesini kısa süre tetikler.
 triggers:
   - trigger: webhook
     webhook_id: reolink_kapi_ac
     allowed_methods:
       - POST
     local_only: true
+conditions: []
 actions:
   - action: switch.turn_on
     target:
@@ -31,32 +31,29 @@ actions:
 mode: single
 ```
 
-## Uygulama ayarları
+Uygulamadaki **Webhook ID** alanıyla otomasyondaki `webhook_id` birebir aynı olmalıdır:
 
-- Home Assistant IP: ör. `192.168.1.50`
-- Port: `8123`
-- HTTPS: yerel kurulumda çoğunlukla kapalı
-- Webhook ID: `reolink_kapi_ac`
-- Reolink paket adı: varsayılan `com.mcu.reolink`
+```text
+reolink_kapi_ac
+```
 
-Reolink paket adı cihazındaki sürümde farklıysa değiştirebilirsin.
+Home Assistant uygulamasının açık olması gerekmez. Telefon, doğrudan HA sunucusuna şu adrese POST gönderir:
 
-## Gerekli izinler
+```text
+http://HA_IP:8123/api/webhook/reolink_kapi_ac
+```
 
-1. Diğer uygulamaların üzerinde göster
-2. Kullanım erişimi
-3. Bildirim izni
-4. Xiaomi'de pil kısıtlaması kapalı ve otomatik başlatma açık
+## Kurulum
 
-## Derleme — GitHub üzerinden
+1. Home Assistant IP'sini gir.
+2. Portu gir (`8123`).
+3. Webhook ID'yi gir (`reolink_kapi_ac`).
+4. Ayarları kaydet.
+5. Overlay ve kullanım erişimi izinlerini ver.
+6. Servisi başlat.
+7. Reolink'i aç.
 
-1. Bu klasörü yeni bir GitHub deposuna yükle.
-2. `Actions` sekmesini aç.
-3. `Build APK` iş akışını çalıştır.
-4. İş bitince `Artifacts` bölümünden `DiafonCompanion-debug` dosyasını indir.
-5. ZIP içindeki `app-debug.apk` dosyasını telefona kur.
+## Güvenlik
 
-## Önemli Android sınırlaması
-
-Normal bir Android uygulaması Reolink'i zorla kapatamaz.
-`Komuttan sonra ana ekrana dön` seçeneği Reolink'i arka plana alır ve ana ekranı açar.
+Webhook yalnızca yerel ağda çalışacak şekilde `local_only: true` ayarlanmıştır.
+Röleyi fiziksel kilide bağlamadan önce otomasyonu boş bir test switch'iyle doğrula.

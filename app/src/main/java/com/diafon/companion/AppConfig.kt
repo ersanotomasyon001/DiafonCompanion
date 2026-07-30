@@ -8,7 +8,6 @@ data class AppConfig(
     val https: Boolean,
     val webhookId: String,
     val targetPackage: String,
-    val returnHome: Boolean,
     val autoStart: Boolean
 ) {
     val webhookUrl: String
@@ -19,15 +18,15 @@ data class AppConfig(
 }
 
 class ConfigStore(context: Context) {
-    private val prefs = context.getSharedPreferences("diafon_config", Context.MODE_PRIVATE)
+    private val prefs =
+        context.getSharedPreferences("diafon_config", Context.MODE_PRIVATE)
 
     fun load(): AppConfig = AppConfig(
-        host = prefs.getString("host", "192.168.1.10").orEmpty(),
+        host = prefs.getString("host", "192.168.1.112").orEmpty(),
         port = prefs.getInt("port", 8123),
         https = prefs.getBoolean("https", false),
         webhookId = prefs.getString("webhook_id", "reolink_kapi_ac").orEmpty(),
         targetPackage = prefs.getString("target_package", "com.mcu.reolink").orEmpty(),
-        returnHome = prefs.getBoolean("return_home", true),
         autoStart = prefs.getBoolean("auto_start", true)
     )
 
@@ -38,7 +37,6 @@ class ConfigStore(context: Context) {
             .putBoolean("https", config.https)
             .putString("webhook_id", config.webhookId.trim())
             .putString("target_package", config.targetPackage.trim())
-            .putBoolean("return_home", config.returnHome)
             .putBoolean("auto_start", config.autoStart)
             .apply()
     }
