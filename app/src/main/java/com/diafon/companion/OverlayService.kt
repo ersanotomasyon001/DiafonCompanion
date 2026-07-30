@@ -33,6 +33,7 @@ class OverlayService : Service() {
         private const val HA_MINIMAL_PACKAGE =
             "io.homeassistant.companion.android.minimal"
         private const val LONG_PRESS_MS = 420L
+        private const val HIDE_DEBOUNCE_MS = 3000L
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
@@ -54,15 +55,25 @@ class OverlayService : Service() {
     private var overlayPanel: View? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var doorButton: TextView? = null
+    private var lastTargetSeenAt = 0L
 
     private val monitor = object : Runnable {
         override fun run() {
             val config = store.load()
-            val shouldShow =
-                Settings.canDrawOverlays(this@OverlayService) &&
-                    detector.currentPackage() == config.targetPackage
+            val canDraw = Settings.canDrawOverlays(this@OverlayService)
+            val targetIsForeground =
+                detector.currentPackage() == config.targetPackage
 
-            if (shouldShow) showOverlay() else hideOverlay()
+            if (canDraw && targetIsForeground) {
+                lastTargetSeenAt = System.currentTimeMillis()
+                showOverlay()
+            } else if (
+                !canDraw ||
+                System.currentTimeMillis() - lastTargetSeenAt >= HIDE_DEBOUNCE_MS
+            ) {
+                hideOverlay()
+            }
+
             handler.postDelayed(this, 600)
         }
     }
@@ -270,7 +281,7 @@ class OverlayService : Service() {
         button.text = "⏳"
 
         thread {
-            val result = HomeAssistantClient.postWebhook(config)
+            val result = HomeAssistantClient.postDoorWebhook(config)
 
             handler.post {
                 result.onSuccess {
@@ -366,7 +377,7 @@ class OverlayService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentTitle("Diafon Companion V3")
+            .setContentTitle("Diafon Companion V4")
             .setContentText("Reolink kapı kontrolleri etkin.")
             .setContentIntent(openApp)
             .setOngoing(true)

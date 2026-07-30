@@ -1,54 +1,66 @@
-# Diafon Companion V3
+# Diafon Companion V4
 
-## Yenilikler
+## V4 yenilikleri
 
-- Küçük, yuvarlak ikon butonları
-- 🔓 kısa dokunma: kapı webhook'u
-- 🏠 kısa dokunma: Home Assistant uygulaması
-- İkona yaklaşık 420 ms basılı tutma: paneli sürükleme
-- Panel konumunu kalıcı olarak kaydetme
-- Tek Home Assistant adresi alanı:
+- Reolink Android bildirimlerini doğrudan dinler.
+- Yalnızca ayarlardaki paket adı ve başlık eşleşirse işlem yapar.
+- Varsayılan paket: `com.mcu.reolink`
+- Varsayılan başlık: `KAPI ZİLİ ALGILANDI`
+- Zil olayını, uygulamada seçtiğiniz Home Assistant sunucusuna gönderir.
+- Sunucu adresi sabit değildir; ayarlardaki adres kullanılır.
+- Kapı açma ve zil bildirimi için ayrı webhook kimlikleri vardır.
+- Aynı bildirimin iki kez işlenmesine karşı 10 saniyelik koruma vardır.
+- Reolink etkinlik geçişlerinde overlay kaybolmadan önce 3 saniye bekler.
 
-- Resmî ve minimal Home Assistant Android paketlerini algılama
-- Paket açılamazsa HA web adresine geri dönüş
+## Kurulum
 
-## Home Assistant otomasyonu
+1. Uygulamada Home Assistant adresini girin.
+2. Kapı açma webhook ID: `reolink_kapi_ac`
+3. Zil bildirimi webhook ID: `reolink_zil_bildirimi`
+4. `BİLDİRİM ERİŞİMİ VER` düğmesine basıp Diafon Companion'ı etkinleştirin.
+5. Xiaomi'de pil kısıtlamasını kaldırın ve otomatik başlatmayı açın.
 
-Gerçek Wemos entity adını daha sonra değiştir:
+## Güvenlik notu
+
+`reolink_zil_bildirimi` webhook'u kapıyı doğrudan açmamalıdır. Yalnızca telefonlara bildirim göndermelidir. Kapı ancak bildirimdeki `KAPI_AC` eylemine basıldığında `button.kapiac` üzerinden açılmalıdır.
+
+## Home Assistant — zil bildirimi
 
 ```yaml
-alias: Diafon Companion - Kapıyı Aç
+alias: Reolink Zil Bildirimini Telefona Gönder
 triggers:
   - trigger: webhook
-    webhook_id: reolink_kapi_ac
+    webhook_id: reolink_zil_bildirimi
     allowed_methods:
       - POST
     local_only: false
 conditions: []
 actions:
-  - action: switch.turn_on
-    target:
-      entity_id: switch.wemos_kapi_rolesi
-  - delay:
-      milliseconds: 700
-  - action: switch.turn_off
-    target:
-      entity_id: switch.wemos_kapi_rolesi
+  - action: notify.mobile_app_telfon
+    data:
+      title: "🔔 Kapı Zili"
+      message: "Birisi zile bastı."
+      data:
+        actions:
+          - action: KAPI_AC
+            title: "🔓 Kapıyı Aç"
+            authenticationRequired: true
 mode: single
 ```
 
-## Yerel ve uzaktan erişim
+## Home Assistant — bildirim düğmesinden kapıyı aç
 
-Uygulamada tek adres kullanılır:
-
-```text
+```yaml
+alias: Telefon Bildiriminden Kapıyı Aç
+triggers:
+  - trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: KAPI_AC
+conditions: []
+actions:
+  - action: button.press
+    target:
+      entity_id: button.kapiac
+mode: single
 ```
-
-Uygulama otomatik olarak şunu çağırır:
-
-```text
-
-```
-
-Uzaktan erişim kullanılacaksa webhook otomasyonunda `local_only: false` gerekir.
-Webhook kimliğini parola gibi gizli tut.

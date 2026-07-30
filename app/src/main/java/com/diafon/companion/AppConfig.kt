@@ -4,15 +4,20 @@ import android.content.Context
 
 data class AppConfig(
     val baseUrl: String,
-    val webhookId: String,
+    val doorWebhookId: String,
+    val bellWebhookId: String,
     val targetPackage: String,
+    val targetTitle: String,
     val autoStart: Boolean
 ) {
     val normalizedBaseUrl: String
         get() = baseUrl.trim().trimEnd('/')
 
-    val webhookUrl: String
-        get() = "$normalizedBaseUrl/api/webhook/${webhookId.trim()}"
+    val doorWebhookUrl: String
+        get() = "$normalizedBaseUrl/api/webhook/${doorWebhookId.trim()}"
+
+    val bellWebhookUrl: String
+        get() = "$normalizedBaseUrl/api/webhook/${bellWebhookId.trim()}"
 }
 
 class ConfigStore(context: Context) {
@@ -24,13 +29,21 @@ class ConfigStore(context: Context) {
             "base_url",
             "https://ha.youtubetv.com.tr"
         ).orEmpty(),
-        webhookId = prefs.getString(
-            "webhook_id",
-            "reolink_kapi_ac"
+        doorWebhookId = prefs.getString(
+            "door_webhook_id",
+            prefs.getString("webhook_id", "reolink_kapi_ac")
+        ).orEmpty(),
+        bellWebhookId = prefs.getString(
+            "bell_webhook_id",
+            "reolink_zil_bildirimi"
         ).orEmpty(),
         targetPackage = prefs.getString(
             "target_package",
             "com.mcu.reolink"
+        ).orEmpty(),
+        targetTitle = prefs.getString(
+            "target_title",
+            "KAPI ZİLİ ALGILANDI"
         ).orEmpty(),
         autoStart = prefs.getBoolean("auto_start", true)
     )
@@ -38,8 +51,10 @@ class ConfigStore(context: Context) {
     fun save(config: AppConfig) {
         prefs.edit()
             .putString("base_url", config.normalizedBaseUrl)
-            .putString("webhook_id", config.webhookId.trim())
+            .putString("door_webhook_id", config.doorWebhookId.trim())
+            .putString("bell_webhook_id", config.bellWebhookId.trim())
             .putString("target_package", config.targetPackage.trim())
+            .putString("target_title", config.targetTitle.trim())
             .putBoolean("auto_start", config.autoStart)
             .apply()
     }

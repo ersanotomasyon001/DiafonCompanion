@@ -46,6 +46,17 @@
                 android:value="Reolink açıkken yerel Home Assistant kapı düğmesini gösterir." />
         </service>
 
+
+        <service
+            android:name=".ReolinkNotificationListener"
+            android:label="Diafon Companion bildirim dinleyicisi"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"

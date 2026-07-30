@@ -4,8 +4,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object HomeAssistantClient {
-    fun postWebhook(config: AppConfig): Result<Int> = runCatching {
-        val connection = (URL(config.webhookUrl).openConnection() as HttpURLConnection).apply {
+    fun postDoorWebhook(config: AppConfig): Result<Int> =
+        post(config.doorWebhookUrl)
+
+    fun postBellWebhook(config: AppConfig): Result<Int> =
+        post(config.bellWebhookUrl)
+
+    private fun post(url: String): Result<Int> = runCatching {
+        require(url.startsWith("http://") || url.startsWith("https://")) {
+            "Geçerli bir Home Assistant adresi girilmedi."
+        }
+
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 5000
             readTimeout = 5000
