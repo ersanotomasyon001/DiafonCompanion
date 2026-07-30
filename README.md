@@ -1,23 +1,30 @@
-# Diafon Companion V2
+# Diafon Companion V3
 
-Reolink uygulaması öndeyken iki düğmeli kayan bir kart gösterir:
+## Yenilikler
 
-- **Kapıyı Aç:** Home Assistant webhook'una POST gönderir.
-- **Home Assistant:** Röleyi tetiklemeden HA uygulamasını açar.
+- Küçük, yuvarlak ikon butonları
+- 🔓 kısa dokunma: kapı webhook'u
+- 🏠 kısa dokunma: Home Assistant uygulaması
+- İkona yaklaşık 420 ms basılı tutma: paneli sürükleme
+- Panel konumunu kalıcı olarak kaydetme
+- Tek Home Assistant adresi alanı:
+  - `https://ha.youtubetv.com.tr`
+  - veya `http://192.168.1.112:8123`
+- Resmî ve minimal Home Assistant Android paketlerini algılama
+- Paket açılamazsa HA web adresine geri dönüş
 
-## Home Assistant tarafı
+## Home Assistant otomasyonu
 
-`switch.wemos_kapi_rolesi` adını kendi gerçek Wemos röle entity'n ile değiştir:
+Gerçek Wemos entity adını daha sonra değiştir:
 
 ```yaml
 alias: Diafon Companion - Kapıyı Aç
-description: Telefon uygulamasından gelen webhook ile Wemos rölesini kısa süre tetikler.
 triggers:
   - trigger: webhook
     webhook_id: reolink_kapi_ac
     allowed_methods:
       - POST
-    local_only: true
+    local_only: false
 conditions: []
 actions:
   - action: switch.turn_on
@@ -31,29 +38,19 @@ actions:
 mode: single
 ```
 
-Uygulamadaki **Webhook ID** alanıyla otomasyondaki `webhook_id` birebir aynı olmalıdır:
+## Yerel ve uzaktan erişim
+
+Uygulamada tek adres kullanılır:
 
 ```text
-reolink_kapi_ac
+https://ha.youtubetv.com.tr
 ```
 
-Home Assistant uygulamasının açık olması gerekmez. Telefon, doğrudan HA sunucusuna şu adrese POST gönderir:
+Uygulama otomatik olarak şunu çağırır:
 
 ```text
-http://HA_IP:8123/api/webhook/reolink_kapi_ac
+https://ha.youtubetv.com.tr/api/webhook/reolink_kapi_ac
 ```
 
-## Kurulum
-
-1. Home Assistant IP'sini gir.
-2. Portu gir (`8123`).
-3. Webhook ID'yi gir (`reolink_kapi_ac`).
-4. Ayarları kaydet.
-5. Overlay ve kullanım erişimi izinlerini ver.
-6. Servisi başlat.
-7. Reolink'i aç.
-
-## Güvenlik
-
-Webhook yalnızca yerel ağda çalışacak şekilde `local_only: true` ayarlanmıştır.
-Röleyi fiziksel kilide bağlamadan önce otomasyonu boş bir test switch'iyle doğrula.
+Uzaktan erişim kullanılacaksa webhook otomasyonunda `local_only: false` gerekir.
+Webhook kimliğini parola gibi gizli tut.

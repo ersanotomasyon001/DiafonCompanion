@@ -3,18 +3,16 @@ package com.diafon.companion
 import android.content.Context
 
 data class AppConfig(
-    val host: String,
-    val port: Int,
-    val https: Boolean,
+    val baseUrl: String,
     val webhookId: String,
     val targetPackage: String,
     val autoStart: Boolean
 ) {
+    val normalizedBaseUrl: String
+        get() = baseUrl.trim().trimEnd('/')
+
     val webhookUrl: String
-        get() {
-            val scheme = if (https) "https" else "http"
-            return "$scheme://$host:$port/api/webhook/$webhookId"
-        }
+        get() = "$normalizedBaseUrl/api/webhook/${webhookId.trim()}"
 }
 
 class ConfigStore(context: Context) {
@@ -22,22 +20,37 @@ class ConfigStore(context: Context) {
         context.getSharedPreferences("diafon_config", Context.MODE_PRIVATE)
 
     fun load(): AppConfig = AppConfig(
-        host = prefs.getString("host", "192.168.1.112").orEmpty(),
-        port = prefs.getInt("port", 8123),
-        https = prefs.getBoolean("https", false),
-        webhookId = prefs.getString("webhook_id", "reolink_kapi_ac").orEmpty(),
-        targetPackage = prefs.getString("target_package", "com.mcu.reolink").orEmpty(),
+        baseUrl = prefs.getString(
+            "base_url",
+            "https://ha.youtubetv.com.tr"
+        ).orEmpty(),
+        webhookId = prefs.getString(
+            "webhook_id",
+            "reolink_kapi_ac"
+        ).orEmpty(),
+        targetPackage = prefs.getString(
+            "target_package",
+            "com.mcu.reolink"
+        ).orEmpty(),
         autoStart = prefs.getBoolean("auto_start", true)
     )
 
     fun save(config: AppConfig) {
         prefs.edit()
-            .putString("host", config.host.trim())
-            .putInt("port", config.port)
-            .putBoolean("https", config.https)
+            .putString("base_url", config.normalizedBaseUrl)
             .putString("webhook_id", config.webhookId.trim())
             .putString("target_package", config.targetPackage.trim())
             .putBoolean("auto_start", config.autoStart)
+            .apply()
+    }
+
+    fun loadOverlayX(): Int = prefs.getInt("overlay_x", 18)
+    fun loadOverlayY(): Int = prefs.getInt("overlay_y", 0)
+
+    fun saveOverlayPosition(x: Int, y: Int) {
+        prefs.edit()
+            .putInt("overlay_x", x)
+            .putInt("overlay_y", y)
             .apply()
     }
 }

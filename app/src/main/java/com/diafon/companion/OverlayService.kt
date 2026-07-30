@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -28,7 +29,10 @@ class OverlayService : Service() {
     companion object {
         private const val CHANNEL_ID = "diafon_overlay"
         private const val NOTIFICATION_ID = 1001
-        private const val HOME_ASSISTANT_PACKAGE = "io.homeassistant.companion.android"
+        private const val HA_FULL_PACKAGE = "io.homeassistant.companion.android"
+        private const val HA_MINIMAL_PACKAGE =
+            "io.homeassistant.companion.android.minimal"
+        private const val LONG_PRESS_MS = 420L
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
@@ -45,14 +49,15 @@ class OverlayService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private lateinit var detector: ForegroundAppDetector
+    private lateinit var store: ConfigStore
 
-    private var overlayCard: View? = null
+    private var overlayPanel: View? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var doorButton: TextView? = null
 
     private val monitor = object : Runnable {
         override fun run() {
-            val config = ConfigStore(this@OverlayService).load()
+            val config = store.load()
             val shouldShow =
                 Settings.canDrawOverlays(this@OverlayService) &&
                     detector.currentPackage() == config.targetPackage
@@ -69,6 +74,7 @@ class OverlayService : Service() {
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         detector = ForegroundAppDetector(this)
+        store = ConfigStore(this)
         handler.post(monitor)
     }
 
@@ -81,37 +87,34 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun showOverlay() {
-        if (overlayCard != null) return
+        if (overlayPanel != null) return
 
-        val card = LinearLayout(this).apply {
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(6), dp(6), dp(6), dp(6))
+            gravity = Gravity.CENTER
+            setPadding(dp(4), dp(4), dp(4), dp(4))
             background = roundedBackground(
-                color = Color.argb(235, 28, 28, 32),
-                radiusDp = 20f
+                Color.argb(150, 20, 20, 24),
+                34f
             )
-            elevation = dp(12).toFloat()
+            elevation = dp(8).toFloat()
         }
 
-        val openDoor = createActionButton(
-            text = "🔓  KAPIYI AÇ",
-            backgroundColor = Color.rgb(25, 135, 84),
-            textColor = Color.WHITE
-        ).apply {
-            setOnClickListener { sendDoorCommand() }
-        }
+        val openDoor = createCircleButton(
+            icon = "🔓",
+            contentDescriptionText = "Kapıyı Aç",
+            backgroundColor = Color.argb(235, 20, 145, 82)
+        )
 
-        val openHa = createActionButton(
-            text = "🏠  HOME ASSISTANT",
-            backgroundColor = Color.rgb(64, 68, 76),
-            textColor = Color.WHITE
-        ).apply {
-            setOnClickListener { openHomeAssistant() }
-        }
+        val openHa = createCircleButton(
+            icon = "🏠",
+            contentDescriptionText = "Home Assistant",
+            backgroundColor = Color.argb(225, 62, 68, 78)
+        )
 
-        card.addView(openDoor)
-        card.addView(space(dp(6)))
-        card.addView(openHa)
+        panel.addView(openDoor)
+        panel.addView(space(dp(5)))
+        panel.addView(openHa)
 
         val type =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
@@ -121,7 +124,7 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            dp(210),
+            dp(66),
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -129,87 +132,117 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            x = dp(14)
-            y = 0
+            x = store.loadOverlayX().coerceAtLeast(0)
+            y = store.loadOverlayY()
         }
 
-        enableDragging(card, params)
+        installPressAndDrag(openDoor, panel, params) {
+            sendDoorCommand()
+        }
+
+        installPressAndDrag(openHa, panel, params) {
+            openHomeAssistant()
+        }
 
         try {
-            windowManager.addView(card, params)
-            overlayCard = card
+            windowManager.addView(panel, params)
+            overlayPanel = panel
             overlayParams = params
             doorButton = openDoor
         } catch (_: Exception) {
-            overlayCard = null
+            overlayPanel = null
             overlayParams = null
             doorButton = null
         }
     }
 
-    private fun createActionButton(
-        text: String,
-        backgroundColor: Int,
-        textColor: Int
+    private fun createCircleButton(
+        icon: String,
+        contentDescriptionText: String,
+        backgroundColor: Int
     ): TextView = TextView(this).apply {
-        this.text = text
-        this.textSize = 16f
-        this.setTextColor(textColor)
+        text = icon
+        textSize = 24f
         gravity = Gravity.CENTER
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = roundedBackground(backgroundColor, 15f)
+        contentDescription = contentDescriptionText
+        background = roundedBackground(backgroundColor, 30f)
+        elevation = dp(4).toFloat()
         isClickable = true
         isFocusable = true
-        elevation = dp(3).toFloat()
+        layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
     }
 
-    private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable =
-        GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(color)
-            cornerRadius = dp(radiusDp.toInt()).toFloat()
-        }
-
-    private fun space(height: Int): View =
-        View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, height)
-        }
-
-    private fun enableDragging(
-        view: View,
-        params: WindowManager.LayoutParams
+    private fun installPressAndDrag(
+        button: View,
+        panel: View,
+        params: WindowManager.LayoutParams,
+        onShortTap: () -> Unit
     ) {
-        var startX = 0
-        var startY = 0
-        var touchX = 0f
-        var touchY = 0f
+        var initialX = 0
+        var initialY = 0
+        var initialRawX = 0f
+        var initialRawY = 0f
+        var dragMode = false
         var moved = false
 
-        view.setOnTouchListener { _, event ->
+        val enterDragMode = Runnable {
+            dragMode = true
+            button.performHapticFeedback(
+                android.view.HapticFeedbackConstants.LONG_PRESS
+            )
+        }
+
+        button.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    startX = params.x
-                    startY = params.y
-                    touchX = event.rawX
-                    touchY = event.rawY
+                    initialX = params.x
+                    initialY = params.y
+                    initialRawX = event.rawX
+                    initialRawY = event.rawY
+                    dragMode = false
                     moved = false
-                    false
+                    handler.postDelayed(enterDragMode, LONG_PRESS_MS)
+                    true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (touchX - event.rawX).toInt()
-                    val dy = (event.rawY - touchY).toInt()
+                    val deltaX = initialRawX - event.rawX
+                    val deltaY = event.rawY - initialRawY
 
-                    if (abs(dx) > dp(4) || abs(dy) > dp(4)) {
+                    if (
+                        !dragMode &&
+                        (abs(deltaX) > dp(10) || abs(deltaY) > dp(10))
+                    ) {
+                        handler.removeCallbacks(enterDragMode)
+                    }
+
+                    if (dragMode) {
                         moved = true
-                        params.x = (startX + dx).coerceAtLeast(0)
-                        params.y = startY + dy
+                        params.x = (initialX + deltaX.toInt()).coerceAtLeast(0)
+                        params.y = initialY + deltaY.toInt()
+
                         try {
-                            windowManager.updateViewLayout(view, params)
+                            windowManager.updateViewLayout(panel, params)
                         } catch (_: Exception) {
                         }
                     }
-                    moved
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    handler.removeCallbacks(enterDragMode)
+
+                    if (dragMode || moved) {
+                        store.saveOverlayPosition(params.x, params.y)
+                    } else {
+                        onShortTap()
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(enterDragMode)
+                    true
                 }
 
                 else -> false
@@ -218,89 +251,123 @@ class OverlayService : Service() {
     }
 
     private fun hideOverlay() {
-        overlayCard?.let {
+        overlayPanel?.let {
             try {
                 windowManager.removeView(it)
             } catch (_: Exception) {
             }
         }
-        overlayCard = null
+        overlayPanel = null
         overlayParams = null
         doorButton = null
     }
 
     private fun sendDoorCommand() {
         val button = doorButton ?: return
-        val config = ConfigStore(this).load()
+        val config = store.load()
 
         button.isEnabled = false
-        button.text = "⏳  GÖNDERİLİYOR..."
+        button.text = "⏳"
 
         thread {
             val result = HomeAssistantClient.postWebhook(config)
 
             handler.post {
                 result.onSuccess {
-                    button.text = "✅  KOMUT GİTTİ"
+                    button.text = "✅"
                     Toast.makeText(
                         this,
-                        "Kapı açma komutu Home Assistant'a gönderildi.",
+                        "Kapı komutu gönderildi.",
                         Toast.LENGTH_SHORT
                     ).show()
 
                     handler.postDelayed({
-                        button.text = "🔓  KAPIYI AÇ"
+                        button.text = "🔓"
                         button.isEnabled = true
-                    }, 1200)
+                    }, 1100)
                 }.onFailure {
-                    button.text = "⚠️  BAĞLANTI HATASI"
+                    button.text = "⚠️"
                     Toast.makeText(
                         this,
-                        "Home Assistant bağlantı hatası: ${it.message}",
+                        "Bağlantı hatası: ${it.message}",
                         Toast.LENGTH_LONG
                     ).show()
 
                     handler.postDelayed({
-                        button.text = "🔓  KAPIYI AÇ"
+                        button.text = "🔓"
                         button.isEnabled = true
-                    }, 1800)
+                    }, 1700)
                 }
             }
         }
     }
 
     private fun openHomeAssistant() {
-        val launchIntent =
-            packageManager.getLaunchIntentForPackage(HOME_ASSISTANT_PACKAGE)
+        val packages = listOf(
+            HA_FULL_PACKAGE,
+            HA_MINIMAL_PACKAGE
+        )
 
-        if (launchIntent == null) {
-            Toast.makeText(
-                this,
-                "Home Assistant uygulaması bulunamadı.",
-                Toast.LENGTH_LONG
-            ).show()
-            return
+        for (packageName in packages) {
+            val launchIntent =
+                packageManager.getLaunchIntentForPackage(packageName)
+
+            if (launchIntent != null) {
+                launchIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
+                startActivity(launchIntent)
+                return
+            }
         }
 
-        launchIntent.addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP
-        )
-        startActivity(launchIntent)
+        // Paket adı görülemese veya farklı olsa bile HA adresini açmayı dene.
+        // Home Assistant bu bağlantıyla ilişkilendirilmişse uygulama açılır;
+        // değilse varsayılan tarayıcı açılır.
+        val url = store.load().normalizedBaseUrl
+        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        try {
+            startActivity(webIntent)
+        } catch (_: Exception) {
+            Toast.makeText(
+                this,
+                "Home Assistant uygulaması veya uygun tarayıcı bulunamadı.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
+
+    private fun roundedBackground(
+        color: Int,
+        radiusDp: Float
+    ): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        setColor(color)
+        cornerRadius = dp(radiusDp.toInt()).toFloat()
+    }
+
+    private fun space(height: Int): View =
+        View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, height)
+        }
 
     private fun createNotification(): Notification {
         val openApp = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            PendingIntent.FLAG_IMMUTABLE or
+                PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentTitle("Diafon Companion V2")
-            .setContentText("Reolink açıkken kapı kontrolü gösteriliyor.")
+            .setContentTitle("Diafon Companion V3")
+            .setContentText("Reolink kapı kontrolleri etkin.")
             .setContentIntent(openApp)
             .setOngoing(true)
             .build()

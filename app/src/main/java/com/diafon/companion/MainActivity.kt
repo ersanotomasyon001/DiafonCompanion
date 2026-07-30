@@ -17,17 +17,15 @@ import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var host: EditText
-    private lateinit var port: EditText
+    private lateinit var baseUrl: EditText
     private lateinit var webhook: EditText
     private lateinit var targetPackage: EditText
-    private lateinit var https: CheckBox
     private lateinit var autoStart: CheckBox
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Diafon Companion V2"
+        title = "Diafon Companion V3"
         setContentView(buildUi())
         loadConfig()
         requestNotificationPermission()
@@ -40,38 +38,57 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildUi(): ScrollView {
         val scroll = ScrollView(this)
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val p = dp(20)
-            setPadding(p, p, p, p)
+            val padding = dp(20)
+            setPadding(padding, padding, padding, padding)
         }
+
         scroll.addView(root)
 
         root.addView(TextView(this).apply {
-            text = "Diafon Companion V2"
+            text = "Diafon Companion V3"
             textSize = 26f
         })
 
         root.addView(TextView(this).apply {
-            text = "Reolink açıkken şık Kapıyı Aç ve Home Assistant butonlarını gösterir."
+            text =
+                "Reolink açıkken küçük yuvarlak kapı ve Home Assistant ikonları gösterir."
             textSize = 15f
             setPadding(0, dp(8), 0, dp(16))
         })
 
-        host = field(root, "Home Assistant IP / alan adı")
-        port = field(
+        baseUrl = field(
             root,
-            "Port",
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            "Home Assistant adresi",
+            "Örnek: https://ha.youtubetv.com.tr veya http://192.168.1.112:8123"
         )
-        webhook = field(root, "Kapı açma Webhook ID")
-        targetPackage = field(root, "Reolink paket adı")
-        https = check(root, "HTTPS kullan")
-        autoStart = check(root, "Telefon açılınca servisi başlat")
+
+        webhook = field(
+            root,
+            "Kapı açma Webhook ID",
+            "reolink_kapi_ac"
+        )
+
+        targetPackage = field(
+            root,
+            "Reolink paket adı",
+            "com.mcu.reolink"
+        )
+
+        autoStart = check(
+            root,
+            "Telefon açılınca servisi başlat"
+        )
 
         button(root, "AYARLARI KAYDET") {
             saveConfig()
-            Toast.makeText(this, "Ayarlar kaydedildi.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Ayarlar kaydedildi.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         button(root, "OVERLAY İZNİ VER") {
@@ -120,10 +137,11 @@ class MainActivity : AppCompatActivity() {
         button(root, "WEBHOOK'U TEST ET") {
             saveConfig()
             val config = ConfigStore(this).load()
-            status.text = "Test ediliyor: ${config.webhookUrl}"
+            status.text = "Test ediliyor:\n${config.webhookUrl}"
 
             thread {
                 val result = HomeAssistantClient.postWebhook(config)
+
                 runOnUiThread {
                     status.text = result.fold(
                         onSuccess = { "Başarılı. HTTP $it" },
@@ -141,11 +159,14 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(TextView(this).apply {
             text = """
-                Kapıyı Aç:
-                Home Assistant webhook'una POST gönderir.
+                Kullanım:
+                • Kısa dokunma: komutu çalıştırır.
+                • Yaklaşık yarım saniye basılı tutma: sürükleme moduna geçer.
+                • Yeni konum otomatik kaydedilir.
 
-                Home Assistant:
-                Röleye dokunmadan doğrudan Home Assistant uygulamasını açar.
+                Home Assistant ikonu:
+                Röleyi tetiklemeden HA uygulamasını açmayı dener.
+                Uygulama bulunamazsa HA web adresini açar.
 
                 Xiaomi:
                 • Pil tasarrufu → Kısıtlama yok
@@ -159,7 +180,7 @@ class MainActivity : AppCompatActivity() {
     private fun field(
         root: LinearLayout,
         label: String,
-        inputType: Int = android.text.InputType.TYPE_CLASS_TEXT
+        hintText: String
     ): EditText {
         root.addView(TextView(this).apply {
             text = label
@@ -167,7 +188,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         return EditText(this).also {
-            it.inputType = inputType
+            it.hint = hintText
+            it.inputType =
+                android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_URI
+
             root.addView(
                 it,
                 LinearLayout.LayoutParams(
@@ -178,11 +203,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun check(root: LinearLayout, textValue: String): CheckBox =
-        CheckBox(this).also {
-            it.text = textValue
-            root.addView(it)
-        }
+    private fun check(
+        root: LinearLayout,
+        textValue: String
+    ): CheckBox = CheckBox(this).also {
+        it.text = textValue
+        root.addView(it)
+    }
 
     private fun button(
         root: LinearLayout,
@@ -197,20 +224,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadConfig() {
         val config = ConfigStore(this).load()
-        host.setText(config.host)
-        port.setText(config.port.toString())
+        baseUrl.setText(config.baseUrl)
         webhook.setText(config.webhookId)
         targetPackage.setText(config.targetPackage)
-        https.isChecked = config.https
         autoStart.isChecked = config.autoStart
     }
 
     private fun saveConfig() {
+        val enteredUrl = baseUrl.text.toString().trim()
+
+        if (
+            enteredUrl.isNotBlank() &&
+            !enteredUrl.startsWith("http://") &&
+            !enteredUrl.startsWith("https://")
+        ) {
+            baseUrl.setText("https://$enteredUrl")
+        }
+
         ConfigStore(this).save(
             AppConfig(
-                host = host.text.toString(),
-                port = port.text.toString().toIntOrNull() ?: 8123,
-                https = https.isChecked,
+                baseUrl = baseUrl.text.toString(),
                 webhookId = webhook.text.toString(),
                 targetPackage = targetPackage.text.toString(),
                 autoStart = autoStart.isChecked
@@ -219,18 +252,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
+        val config = ConfigStore(this).load()
+
         status.text = buildString {
             appendLine(
                 "Overlay izni: ${
-                    if (Settings.canDrawOverlays(this@MainActivity)) "Var" else "Yok"
+                    if (Settings.canDrawOverlays(this@MainActivity))
+                        "Var"
+                    else
+                        "Yok"
                 }"
             )
             appendLine(
                 "Kullanım erişimi: ${
-                    if (hasUsageAccess()) "Var" else "Yok"
+                    if (hasUsageAccess())
+                        "Var"
+                    else
+                        "Yok"
                 }"
             )
-            append("Hedef paket: ${ConfigStore(this@MainActivity).load().targetPackage}")
+            appendLine("HA adresi: ${config.normalizedBaseUrl}")
+            append("Hedef paket: ${config.targetPackage}")
         }
     }
 
