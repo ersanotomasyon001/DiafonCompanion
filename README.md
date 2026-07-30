@@ -8,8 +8,7 @@
 - İkona yaklaşık 420 ms basılı tutma: paneli sürükleme
 - Panel konumunu kalıcı olarak kaydetme
 - Tek Home Assistant adresi alanı:
-  - `https://ha.youtubetv.com.tr`
-  - veya `http://192.168.1.112:8123`
+
 - Resmî ve minimal Home Assistant Android paketlerini algılama
 - Paket açılamazsa HA web adresine geri dönüş
 
@@ -43,13 +42,12 @@ mode: single
 Uygulamada tek adres kullanılır:
 
 ```text
-https://ha.youtubetv.com.tr
 ```
 
 Uygulama otomatik olarak şunu çağırır:
 
 ```text
-https://ha.youtubetv.com.tr/api/webhook/reolink_kapi_ac
+
 ```
 
 Uzaktan erişim kullanılacaksa webhook otomasyonunda `local_only: false` gerekir.
